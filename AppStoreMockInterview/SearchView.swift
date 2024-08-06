@@ -7,52 +7,6 @@
 
 import SwiftUI
 
-// trackName trackId artistName primaryGenreName screenshotUrls artworkUrl512
-
-struct SearchResult: Codable {
-    let results: [Result]
-}
-
-struct Result: Codable, Identifiable {
-    var id: Int { trackId }
-    let trackId: Int
-    let trackName: String
-    let artworkUrl512: String
-    let primaryGenreName: String
-    let screenshotUrls: [String]
-}
-
-@MainActor
-class SearchViewModel: ObservableObject {
-    
-    @Published var results: [Result] = [Result]()
-    
-    init() {
-        fetchJSONData()
-    }
-    
-    func fetchJSONData() {
-        // Contact for JSON Data
-        Task {
-            do {
-                guard let url = URL(string: "https://itunes.apple.com/search?term=tinder&entity=software") else { return }
-                let (data, _) = try await URLSession.shared.data(from: url)
-                print(data)
-                
-                let searchResult = try JSONDecoder().decode(SearchResult.self, from: data)
-                //                searchResult.results.prefix(3).forEach { result in
-                //                    print(result.trackName)
-                //                }
-                
-                self.results = searchResult.results
-                
-            } catch {
-                print("Failed due to error:", error)
-            }
-        }
-    }
-}
-
 struct SearchView: View {
     
     // ObservedObject <- more for dependecy injection
@@ -61,20 +15,32 @@ struct SearchView: View {
     var body: some View {
         NavigationStack {
             GeometryReader { proxy in
-                ScrollView {
-                    ForEach(vm.results.prefix(3)) { result in
-                        VStack(spacing: 16) {
-                            
-                            AppIconTitleView(result: result)
-                            
-                            ScreenshotsRow(proxy: proxy, result: result)
+                ZStack {
+                    
+                    if vm.results.isEmpty && vm.query.isEmpty {
+                        ContentUnavailableView("Please Enter your search", systemImage: "sparkle.magnifyingglass")
+                    } else {
+                        ScrollView {
+                            ForEach(vm.results.prefix(3)) { result in
+                                VStack(spacing: 16) {
+                                    
+                                    AppIconTitleView(result: result)
+                                    
+                                    ScreenshotsRow(proxy: proxy, result: result)
+                                }
+                                .padding(16)
+                            }
                         }
-                        .padding(16)
                     }
+                    
+                    
                 }
             }
             .navigationTitle("Search")
-            .searchable(text: .constant("Enter search term"))
+            .searchable(text: $vm.query)
+            //            .onChange(of: query) {
+            //                print(query)
+            //            }
         }
     }
 }
@@ -103,12 +69,31 @@ struct AppIconTitleView: View {
                     .font(.system(size: 20))
                 Text(result.primaryGenreName)
                     .foregroundStyle(.gray)
-                Text("Stars 34.0M")
+                
+                HStack(spacing: 1) {
+                    
+                    ForEach(0..<Int(result.averageUserRating), id: \.self) { num in
+                            Image(systemName: "star.fill")
+                    }
+                    
+                    ForEach(0..<5 - Int(result.averageUserRating), id: \.self) { num in
+                            Image(systemName: "star")
+                    }
+                    
+                    Text("\(result.userRatingCount.roundedWithAbbreviations)")
+                        .padding(.leading, 4)
+                }
+                .padding(.top, 0)
             }
             
             Spacer()
             
-            Image(systemName: "icloud.and.arrow.down")
+            Button(action: {
+                
+            }, label: {
+                Image(systemName: "icloud.and.arrow.down")
+                    .font(.system(size: 24))
+            })
         }
     }
 }
